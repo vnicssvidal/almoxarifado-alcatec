@@ -3,7 +3,29 @@
 import { useEffect, useState } from 'react';
 import { criarCliente } from '../../lib/supabase';
 import { useSessao, formatarData, NOME_STATUS } from '../../lib/sessao';
-import Topo from '../Topo';
+import Topo, { Cabecalho, Alerta, Esqueleto, Giro } from '../Topo';
+import Icone from '../Icone';
+
+const ETAPAS = [
+  { status: 'solicitado', texto: 'Solicitado' },
+  { status: 'separado', texto: 'Separado' },
+  { status: 'retirado', texto: 'Retirado' },
+];
+const ICONE_STATUS = { solicitado: 'relogio', separado: 'caixa', retirado: 'check', cancelado: 'x' };
+
+function Etapas({ status }) {
+  const atual = ETAPAS.findIndex((e) => e.status === status);
+  return (
+    <ol className="etapas" aria-label="Andamento do pedido">
+      {ETAPAS.map((e, i) => (
+        <li key={e.status} className={`${i <= atual ? 'feita' : ''} ${i === atual ? 'atual' : ''}`}
+          aria-current={i === atual ? 'step' : undefined}>
+          {e.texto}
+        </li>
+      ))}
+    </ol>
+  );
+}
 
 export default function Pedido() {
   const usuario = useSessao(['funcionario']);
@@ -83,71 +105,130 @@ export default function Pedido() {
   }
 
   return (
-    <main>
-      <Topo titulo="Fazer pedido" usuario={usuario} />
+    <>
+      <Topo usuario={usuario} />
+      <main className="conteudo">
+        {!usuario ? <Esqueleto /> : (
+          <>
+            <Cabecalho titulo="Fazer pedido" subtitulo="Escolha os materiais e envie para o almoxarifado separar." />
 
-      <div className="cartao">
-        <div className="grade">
-          <div className="largo">
-            <label htmlFor="material">Material</label>
-            <select id="material" value={materialId} onChange={(e) => setMaterialId(e.target.value)}>
-              <option value="">Escolha…</option>
-              {materiais.map((m) => (
-                <option key={m.id} value={m.id} disabled={m.saldo === 0}>
-                  {m.codigo} · {m.nome} ({m.saldo === 0 ? 'indisponível' : `${m.saldo} ${m.unidade}`})
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="quantidade">Quantidade</label>
-            <input id="quantidade" type="number" min="1" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} />
-          </div>
-        </div>
-        <button className="secundario" style={{ marginTop: 12 }} onClick={adicionar}>Adicionar</button>
+            <Alerta tipo="erro">{erro}</Alerta>
+            <Alerta tipo="ok">{aviso}</Alerta>
 
-        {itens.length > 0 && (
-          <table style={{ marginTop: 16 }}>
-            <thead><tr><th>Material</th><th style={{ textAlign: 'right' }}>Quantidade</th><th></th></tr></thead>
-            <tbody>
-              {itens.map((i) => (
-                <tr key={i.material_id}>
-                  <td>{i.nome}</td>
-                  <td className="num">{i.quantidade} {i.unidade}</td>
-                  <td className="num">
-                    <button className="link" onClick={() => setItens(itens.filter((x) => x.material_id !== i.material_id))}>Remover</button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+            <div className="duas-colunas">
+              <section className="cartao" aria-labelledby="titulo-adicionar">
+                <div className="cartao-titulo"><h2 id="titulo-adicionar">Adicionar material</h2></div>
+                <div className="linha-adicionar">
+                  <div className="campo">
+                    <label htmlFor="material">Material</label>
+                    <select id="material" value={materialId} onChange={(e) => setMaterialId(e.target.value)}>
+                      <option value="">Escolha…</option>
+                      {materiais.map((m) => (
+                        <option key={m.id} value={m.id} disabled={m.saldo === 0}>
+                          {m.codigo} · {m.nome} ({m.saldo === 0 ? 'indisponível' : `${m.saldo} ${m.unidade}`})
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="campo">
+                    <label htmlFor="quantidade">Quantidade</label>
+                    <input id="quantidade" type="number" min="1" inputMode="numeric" value={quantidade} onChange={(e) => setQuantidade(e.target.value)} />
+                  </div>
+                  <button type="button" className="btn btn-secundario" onClick={adicionar}>
+                    <Icone nome="mais" tamanho={18} />
+                    Adicionar
+                  </button>
+                </div>
+                {escolhido && (
+                  <div className="disponivel aparecer">
+                    <Icone nome="caixa" tamanho={16} />
+                    <span>Disponível agora: <strong>{escolhido.saldo} {escolhido.unidade}</strong> de {escolhido.nome}</span>
+                  </div>
+                )}
+              </section>
+
+              <section className="cartao fixo" aria-labelledby="titulo-carrinho">
+                <div className="cartao-titulo">
+                  <h2 id="titulo-carrinho">Seu pedido</h2>
+                  <span className="contador">{itens.length}</span>
+                </div>
+
+                {itens.length === 0 ? (
+                  <div className="vazio carrinho-vazio">
+                    <Icone nome="carrinho" tamanho={28} />
+                    <span className="fraco">Nenhum item ainda. Adicione materiais ao lado.</span>
+                  </div>
+                ) : (
+                  <ul className="itens">
+                    {itens.map((i) => (
+                      <li key={i.material_id} className="aparecer">
+                        <span className="qtd">{i.quantidade} {i.unidade}</span>
+                        <span className="nome">{i.nome}</span>
+                        <button type="button" className="btn-perigo-link"
+                          onClick={() => setItens(itens.filter((x) => x.material_id !== i.material_id))}
+                          aria-label={`Remover ${i.nome}`}>
+                          Remover
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                <div className="carrinho-rodape">
+                  <div className="campo">
+                    <label htmlFor="obs">Observação <span className="fraco">(opcional)</span></label>
+                    <input id="obs" value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex.: para a manutenção da linha 2" />
+                  </div>
+                  <button type="button" className="btn btn-primario btn-bloco" onClick={enviar} disabled={enviando}>
+                    {enviando && <Giro />}
+                    {enviando ? 'Enviando…' : 'Enviar pedido'}
+                  </button>
+                </div>
+              </section>
+            </div>
+
+            <section className="secao" aria-labelledby="titulo-meus">
+              <div className="secao-titulo">
+                <h2 id="titulo-meus">Meus pedidos</h2>
+                <span className="contador">{pedidos.length}</span>
+              </div>
+              {pedidos.length === 0 ? (
+                <div className="cartao vazio">
+                  <Icone nome="prancheta" tamanho={28} />
+                  <strong>Você ainda não fez pedidos</strong>
+                  <span className="fraco">Os pedidos enviados aparecem aqui com o andamento.</span>
+                </div>
+              ) : (
+                <div className="lista-pedidos">
+                  {pedidos.map((p) => (
+                    <article className="cartao pedido-cartao" key={p.id}>
+                      <div className="pedido-topo">
+                        <div>
+                          <h3>Pedido <span className="mono">#{p.id}</span></h3>
+                          <p className="fraco num">{formatarData(p.criada_em)}</p>
+                        </div>
+                        <span className={`selo st-${p.status}`}>
+                          <Icone nome={ICONE_STATUS[p.status]} tamanho={14} />
+                          {NOME_STATUS[p.status]}
+                        </span>
+                      </div>
+                      <ul className="pedido-itens">
+                        {p.itens.map((i, n) => (
+                          <li key={`${i.codigo ?? i.nome}-${n}`}>
+                            <span className="qtd">{i.quantidade} {i.unidade}</span>
+                            <span>{i.nome}</span>
+                          </li>
+                        ))}
+                      </ul>
+                      {p.status !== 'cancelado' && <Etapas status={p.status} />}
+                    </article>
+                  ))}
+                </div>
+              )}
+            </section>
+          </>
         )}
-
-        <label htmlFor="obs">Observação (opcional)</label>
-        <input id="obs" value={observacao} onChange={(e) => setObservacao(e.target.value)} placeholder="Ex.: para a manutenção da linha 2" />
-
-        <button onClick={enviar} disabled={enviando}>{enviando ? 'Enviando…' : 'Enviar pedido'}</button>
-        {erro && <p className="erro">{erro}</p>}
-        {aviso && <p className="ok">{aviso}</p>}
-      </div>
-
-      <h2 style={{ marginTop: 28 }}>Meus pedidos</h2>
-      {pedidos.length === 0 && <p className="sub">Você ainda não fez pedidos.</p>}
-      {pedidos.length > 0 && (
-        <table>
-          <thead><tr><th>Nº</th><th>Data</th><th>Itens</th><th>Situação</th></tr></thead>
-          <tbody>
-            {pedidos.map((p) => (
-              <tr key={p.id}>
-                <td>{p.id}</td>
-                <td>{formatarData(p.criada_em)}</td>
-                <td>{p.itens.map((i) => `${i.quantidade} ${i.unidade} ${i.nome}`).join(', ')}</td>
-                <td><span className={`selo st-${p.status}`}>{NOME_STATUS[p.status]}</span></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </main>
+      </main>
+    </>
   );
 }

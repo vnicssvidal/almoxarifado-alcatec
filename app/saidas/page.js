@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import { criarCliente } from '../../lib/supabase';
 import { useSessao, formatarData } from '../../lib/sessao';
-import Topo from '../Topo';
+import Topo, { Cabecalho, Alerta, Esqueleto, Busca } from '../Topo';
+import Icone from '../Icone';
 
 export default function Saidas() {
   const usuario = useSessao();
@@ -28,38 +29,53 @@ export default function Saidas() {
     || s.responsavel.toLowerCase().includes(termo));
 
   return (
-    <main>
-      <Topo titulo="Histórico de saídas" usuario={usuario} />
-      <input
-        placeholder="Buscar por material, código ou responsável"
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        aria-label="Buscar saída"
-      />
-      {erro && <p className="erro">{erro}</p>}
-      {filtradas.length === 0 && <p className="sub" style={{ marginTop: 16 }}>Nenhuma saída registrada.</p>}
-      {filtradas.length > 0 && (
-        <table style={{ marginTop: 16 }}>
-          <thead>
-            <tr>
-              <th>Data e hora</th><th>Material</th><th style={{ textAlign: 'right' }}>Quantidade</th>
-              <th>Retirado por</th><th>Registrado por</th><th style={{ textAlign: 'right' }}>Saldo depois</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtradas.map((s) => (
-              <tr key={s.id}>
-                <td>{formatarData(s.data_hora)}</td>
-                <td>{s.codigo} · {s.material}</td>
-                <td className="num">{s.quantidade} {s.unidade}</td>
-                <td>{s.responsavel}</td>
-                <td>{s.registrado_por ?? 'Almoxarifado'}</td>
-                <td className="num">{s.saldo_apos}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </main>
+    <>
+      <Topo usuario={usuario} />
+      <main className="conteudo">
+        {!usuario ? <Esqueleto /> : (
+          <>
+            <Cabecalho titulo="Histórico de saídas" subtitulo="Tudo o que saiu do almoxarifado, do mais recente ao mais antigo." />
+            <div style={{ marginBottom: 16 }}>
+              <Busca valor={busca} aoMudar={setBusca} placeholder="Buscar por material, código ou responsável" rotulo="Buscar saída" />
+            </div>
+            <Alerta tipo="erro">{erro}</Alerta>
+
+            {filtradas.length === 0 ? (
+              <div className="cartao vazio">
+                <Icone nome={termo ? 'busca' : 'historico'} tamanho={28} />
+                <strong>{termo ? `Nada encontrado para “${busca.trim()}”` : 'Nenhuma saída registrada'}</strong>
+                {!termo && <span className="fraco">As retiradas registradas no painel aparecem aqui.</span>}
+              </div>
+            ) : (
+              <div className="cartao tabela-caixa">
+                <table className="tabela">
+                  <thead>
+                    <tr>
+                      <th>Data e hora</th><th>Material</th><th className="dir">Quantidade</th>
+                      <th>Retirado por</th><th>Registrado por</th><th className="dir">Saldo depois</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtradas.map((s) => (
+                      <tr key={s.id}>
+                        <td data-label="Data e hora" className="num">{formatarData(s.data_hora)}</td>
+                        <td data-label="Material" className="titulo-cartao">
+                          <span className="mono" style={{ color: 'var(--text-3)' }}>{s.codigo}</span>{' '}
+                          <span className="forte">{s.material}</span>
+                        </td>
+                        <td data-label="Quantidade" className="dir num forte">{s.quantidade} {s.unidade}</td>
+                        <td data-label="Retirado por" className="forte">{s.responsavel}</td>
+                        <td data-label="Registrado por" style={{ color: 'var(--text-2)' }}>{s.registrado_por ?? 'Almoxarifado'}</td>
+                        <td data-label="Saldo depois" className="dir num">{s.saldo_apos}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </main>
+    </>
   );
 }

@@ -3,13 +3,16 @@
 import { useEffect, useState } from 'react';
 import { criarCliente } from '../../lib/supabase';
 import { useSessao } from '../../lib/sessao';
-import Topo from '../Topo';
+import Topo, { Cabecalho, Alerta, Esqueleto, Busca } from '../Topo';
+import Icone from '../Icone';
 
 function situacao(m) {
   if (m.saldo === 0) return { texto: 'Indisponível', classe: 'zerado' };
   if (m.saldo <= m.estoque_minimo) return { texto: 'Estoque baixo', classe: 'baixo' };
   return { texto: 'Normal', classe: 'normal' };
 }
+
+const ICONE_SITUACAO = { normal: 'check', baixo: 'alerta', zerado: 'proibido' };
 
 const VAZIO = { codigo: '', nome: '', categoria: 'Material', unidade: 'un', saldo: '', estoque_minimo: '' };
 
@@ -75,69 +78,115 @@ export default function Materiais() {
     (m) => !termo || m.nome.toLowerCase().includes(termo) || m.codigo.toLowerCase().includes(termo)
   );
 
+  const qtdBaixo = materiais.filter((m) => situacao(m).classe === 'baixo').length;
+  const qtdZerado = materiais.filter((m) => situacao(m).classe === 'zerado').length;
+  const ehAlmoxarife = usuario?.perfil === 'almoxarife';
+
   return (
-    <main>
-      <Topo titulo="Consulta de materiais" usuario={usuario} />
+    <>
+      <Topo usuario={usuario} />
+      <main className="conteudo">
+        {!usuario ? <Esqueleto /> : (
+          <>
+            <Cabecalho titulo="Materiais" subtitulo="Saldo atual de cada item do almoxarifado.">
+              {ehAlmoxarife && !mostrarForm && (
+                <button className="btn btn-primario" onClick={() => setMostrarForm(true)}>
+                  <Icone nome="mais" tamanho={18} />
+                  Novo material
+                </button>
+              )}
+            </Cabecalho>
 
-      {usuario?.perfil === 'almoxarife' && (
-        <div style={{ marginBottom: 16 }}>
-          {!mostrarForm && <button className="secundario" onClick={() => setMostrarForm(true)}>+ Novo material</button>}
-          {mostrarForm && (
-            <form className="cartao" onSubmit={cadastrar}>
-              <h2>Novo material</h2>
-              <div className="grade">
-                <div><label htmlFor="codigo">Código</label><input id="codigo" {...campo('codigo')} /></div>
-                <div className="largo"><label htmlFor="nome">Nome</label><input id="nome" {...campo('nome')} /></div>
-                <div>
-                  <label htmlFor="categoria">Categoria</label>
-                  <select id="categoria" {...campo('categoria')}>
-                    <option>Material</option><option>Peça</option><option>Componente</option>
-                  </select>
+            {ehAlmoxarife && mostrarForm && (
+              <form className="cartao aparecer" onSubmit={cadastrar} style={{ marginBottom: 20 }}>
+                <div className="cartao-titulo">
+                  <h2>Novo material</h2>
                 </div>
-                <div><label htmlFor="unidade">Unidade</label><input id="unidade" {...campo('unidade')} /></div>
-                <div><label htmlFor="saldo">Saldo inicial</label><input id="saldo" type="number" min="0" {...campo('saldo')} /></div>
-                <div><label htmlFor="minimo">Estoque mínimo</label><input id="minimo" type="number" min="0" {...campo('estoque_minimo')} /></div>
-              </div>
-              <div className="acoes">
-                <button type="submit">Salvar</button>
-                <button type="button" className="secundario" onClick={() => setMostrarForm(false)}>Cancelar</button>
-              </div>
-            </form>
-          )}
-        </div>
-      )}
+                <div className="grade">
+                  <div className="campo"><label htmlFor="codigo">Código</label><input id="codigo" autoCapitalize="characters" {...campo('codigo')} /></div>
+                  <div className="campo largo"><label htmlFor="nome">Nome</label><input id="nome" {...campo('nome')} /></div>
+                  <div className="campo">
+                    <label htmlFor="categoria">Categoria</label>
+                    <select id="categoria" {...campo('categoria')}>
+                      <option>Material</option><option>Peça</option><option>Componente</option>
+                    </select>
+                  </div>
+                  <div className="campo"><label htmlFor="unidade">Unidade</label><input id="unidade" {...campo('unidade')} /></div>
+                  <div className="campo"><label htmlFor="saldo">Saldo inicial</label><input id="saldo" type="number" min="0" inputMode="numeric" {...campo('saldo')} /></div>
+                  <div className="campo"><label htmlFor="minimo">Estoque mínimo</label><input id="minimo" type="number" min="0" inputMode="numeric" {...campo('estoque_minimo')} /></div>
+                </div>
+                <div className="form-acoes">
+                  <button type="button" className="btn btn-secundario" onClick={() => setMostrarForm(false)}>Cancelar</button>
+                  <button type="submit" className="btn btn-primario">Salvar material</button>
+                </div>
+              </form>
+            )}
 
-      <input
-        placeholder="Buscar por nome ou código"
-        value={busca}
-        onChange={(e) => setBusca(e.target.value)}
-        aria-label="Buscar material"
-      />
-      {erro && <p className="erro">{erro}</p>}
-      {aviso && <p className="ok">{aviso}</p>}
+            <Alerta tipo="erro">{erro}</Alerta>
+            <Alerta tipo="ok">{aviso}</Alerta>
 
-      <table style={{ marginTop: 16 }}>
-        <thead>
-          <tr>
-            <th>Código</th><th>Material</th><th>Categoria</th>
-            <th style={{ textAlign: 'right' }}>Saldo</th><th>Situação</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtrados.map((m) => {
-            const s = situacao(m);
-            return (
-              <tr key={m.id}>
-                <td>{m.codigo}</td>
-                <td>{m.nome}</td>
-                <td>{m.categoria}</td>
-                <td className="num">{m.saldo} {m.unidade}</td>
-                <td><span className={`selo ${s.classe}`}>{s.texto}</span></td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </main>
+            <div className="indicadores">
+              <div className="cartao indicador">
+                <div className="indicador-rotulo"><Icone nome="caixa" tamanho={16} />Itens ativos</div>
+                <div className="indicador-valor">{materiais.length}</div>
+              </div>
+              <div className="cartao indicador baixo">
+                <div className="indicador-rotulo"><Icone nome="alerta" tamanho={16} />Estoque baixo</div>
+                <div className="indicador-valor">{qtdBaixo}</div>
+              </div>
+              <div className="cartao indicador zerado">
+                <div className="indicador-rotulo"><Icone nome="proibido" tamanho={16} />Indisponíveis</div>
+                <div className="indicador-valor">{qtdZerado}</div>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: 16 }}>
+              <Busca valor={busca} aoMudar={setBusca} placeholder="Buscar por nome ou código" rotulo="Buscar material" />
+            </div>
+
+            {filtrados.length === 0 ? (
+              <div className="cartao vazio">
+                <Icone nome="busca" tamanho={28} />
+                <strong>{termo ? `Nada encontrado para “${busca.trim()}”` : 'Nenhum material cadastrado'}</strong>
+                {termo && <span className="fraco">Confira o código ou tente outro nome.</span>}
+              </div>
+            ) : (
+              <div className="cartao tabela-caixa">
+                <table className="tabela">
+                  <thead>
+                    <tr>
+                      <th>Código</th><th>Material</th><th>Categoria</th>
+                      <th className="dir">Saldo</th><th>Situação</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtrados.map((m) => {
+                      const s = situacao(m);
+                      return (
+                        <tr key={m.id} className={s.classe === 'zerado' ? 'esmaecida' : ''}>
+                          <td data-label="Código" className="mono">{m.codigo}</td>
+                          <td data-label="Material" className="forte titulo-cartao">{m.nome}</td>
+                          <td data-label="Categoria">{m.categoria}</td>
+                          <td data-label="Saldo" className="dir num duas-linhas">
+                            <span className="forte">{m.saldo} {m.unidade}</span>
+                            <small>mín. {m.estoque_minimo}</small>
+                          </td>
+                          <td data-label="Situação">
+                            <span className={`selo ${s.classe}`}>
+                              <Icone nome={ICONE_SITUACAO[s.classe]} tamanho={14} />
+                              {s.texto}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </>
+        )}
+      </main>
+    </>
   );
 }
